@@ -18,8 +18,9 @@ def parse_msa_file(infile):
     Parameters
     ----------
     infile : str
-        file path to input MSA file in A3M format (like FASTA format, but
-        lowercase letters will be dropped)
+        file path to input MSA file in A3M format (like FASTA format,
+        but lowercase letters will be dropped and illegal characters
+        will be substituted with '*')
 
     Returns
     -------
@@ -27,8 +28,9 @@ def parse_msa_file(infile):
     """
     seqs = []
     for seq in io.read(infile, format='fasta'):
-        seqs.append(Protein(re.sub('[a-z]', '', str(seq)),
-                            metadata=seq.metadata))
+        seqstr = re.sub('[a-z]', '', str(seq))
+        seqstr = ''.join([c if c in Protein.alphabet else '*' for c in seqstr])
+        seqs.append(Protein(seqstr, validate=False, metadata=seq.metadata))
     return TabularMSA(seqs)
 
 

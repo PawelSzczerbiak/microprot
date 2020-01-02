@@ -23,14 +23,22 @@ class ProcessingTests(TestCase):
         # test data files
         dir = 'test_calculate_Neff'
         self.input_a3m_fp = get_data_path(join(dir, '2phyA.a3m'))
+        self.input_a3m_fp_illegal = get_data_path(join(dir, 'illegal.a3m'))
         self.input_single_a3m_fp = get_data_path(join(dir, 'single.a3m'))
         self.plain_msa_fp = get_data_path(join(dir, '2phyA.aln'))
+        self.plain_msa_fp_illegal = get_data_path(join(dir, 'illegal.aln'))
         self.hamming_dm_fp = get_data_path(join(dir, '2phyA.hdm'))
         self.clusters_fp = get_data_path(join(dir, '2phyA.c80'))
 
     def test_parse_msa_file(self):
         obs = [str(x) for x in parse_msa_file(self.input_a3m_fp)]
         with open(self.plain_msa_fp, 'r') as f:
+            exp = f.read().splitlines()
+        self.assertListEqual(obs, exp)
+
+    def test_parse_msa_file_check_illegal(self):
+        obs = [str(x) for x in parse_msa_file(self.input_a3m_fp_illegal)]
+        with open(self.plain_msa_fp_illegal, 'r') as f:
             exp = f.read().splitlines()
         self.assertListEqual(obs, exp)
 
