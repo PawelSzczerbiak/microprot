@@ -63,17 +63,17 @@ def extract_sequences(infile, identifiers=None):
         if index range str is not formatted as "start, end"
         if the data type of identifiers is incorrect
     """
-    l, ids, indexes = [], set(), set()
+    list_ids, ids, indexes = [], set(), set()
     if identifiers:
         # IDs or indexes as list
         if isinstance(identifiers, list):
-            l = identifiers
+            list_ids = identifiers
         # start and end indexes as tuple of int
         elif isinstance(identifiers, tuple):
             if len(identifiers) == 2 \
                 and all(isinstance(n, int) for n in identifiers) \
                     and 0 < identifiers[0] <= identifiers[1]:
-                l = list(range(identifiers[0], identifiers[1] + 1))
+                list_ids = list(range(identifiers[0], identifiers[1] + 1))
             else:
                 raise ValueError('Error: Index range must be a tuple of '
                                  '(start, end).')
@@ -81,26 +81,26 @@ def extract_sequences(infile, identifiers=None):
             # read from a file
             if os.path.isfile(identifiers):
                 with open(identifiers, 'r') as f:
-                    l = f.read().splitlines()
+                    list_ids = f.read().splitlines()
             # start and end indexes as str
             elif '..' in identifiers:
-                l = identifiers.split('..')
-                if len(l) == 2 \
-                    and all(n.isdigit() for n in l) \
-                        and 0 < int(l[0]) <= int(l[1]):
-                    l = list(range(int(l[0]), int(l[1]) + 1))
+                list_ids = identifiers.split('..')
+                if len(list_ids) == 2 \
+                    and all(n.isdigit() for n in list_ids) \
+                        and 0 < int(list_ids[0]) <= int(list_ids[1]):
+                    list_ids = list(range(int(list_ids[0]), int(list_ids[1]) + 1))
                 else:
                     raise ValueError('Error: Index range must be formatted as '
                                      '"start..end".')
             # IDs or indexes as str (single or comma-separated list)
             else:
-                l = list(map(str.strip, identifiers.split(',')))
+                list_ids = list(map(str.strip, identifiers.split(',')))
         # index as int
         elif isinstance(identifiers, int):
-            l = [identifiers]
+            list_ids = [identifiers]
         else:
             raise ValueError('Error: Incorrect data type of identifiers.')
-        for i in l:
+        for i in list_ids:
             if isinstance(i, int):  # index of this protein in the file
                 indexes.add(i)
             elif i.isdigit():
