@@ -66,54 +66,6 @@ def msa_size(msa_fp):
     return msa_size
 
 
-def parse_inputs(inp_fp=None, inp_from=None, inp_to=None,
-                 microprot_inp=None, microprot_out=None):
-    """ Parse multi-sequence FASTA file into single-sequence, remove any
-    problematic characters from the name and add intormation to
-    `processed_sequences.fasta` file
-    Parameters
-    ----------
-    inp_fp : str
-        file path to a multi-sequence FASTA file
-    inp_from : int
-        number of the first sequence in the input file
-    inp_to : int
-        number of the last sequence in the input file
-    microprot_inp : str
-        input directory where individual files from inp_fp will be placed
-    microprot_out : str
-        output directory path where processed_sequences.fasta file will \
-        be created
-
-    Returns
-    -------
-    SEQ_ids : list of str
-        list of sequence ids picked from the inp_fp
-    """
-    for _dir in [microprot_inp, microprot_out]:
-        if not os.path.exists(_dir):
-            os.makedirs(_dir)
-
-    SEQS = process_fasta.extract_sequences(inp_fp,
-                                           identifiers=(inp_from, inp_to))
-    SEQ_ids = []
-    processed_fh = open('%s/%s' % (microprot_out,
-                                   'processed_sequences.fasta'), 'a')
-    for i, SEQ in enumerate(SEQS):
-        _seq = SEQ.metadata['id']
-        _seq = _seq.replace('/', '_')
-        _seq = _seq.replace('\\', '_')
-        _seq = _seq.replace('|', '_')
-        SEQ_ids.append(_seq)
-        SEQ.metadata['id'] = _seq
-        io.write(SEQ, format='fasta', into='%s/%s.fasta' % (microprot_inp,
-                                                            _seq))
-        io.write(SEQ, format='fasta',
-                 into=processed_fh)
-    processed_fh.close()
-    return SEQ_ids
-
-
 def write_db(fname, step=None, version=1, db_fp='/tmp/protein_db'):
     """Append protein name and other information into the sequence DB
     Parameters
