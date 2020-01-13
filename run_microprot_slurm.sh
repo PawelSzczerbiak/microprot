@@ -14,7 +14,7 @@
 #=============================================
 
 timestamp() {
-    date --rfc-3339=seconds
+  date --rfc-3339=seconds
 }
 
 showtime() {
@@ -39,17 +39,19 @@ echo "Batch name:   " $BATCH
 echo "Sequence ids: " $SEQ_ids
 echo "UHGP DB name: " $UHGP_NAME
 
-# ========== MODIFIABLE SECTION ==============
+#=========== MODIFIABLE SECTION ==============
 
-# Environment setup
-echo -e "\nActivating conda..."
-timestamp
-START=$(date +%s.%N)
+echo -e "\nSetup environment..."
+timestamp; START=$(date +%s.%N)
+
+# hh-suite module import
+module load plgrid/tools/hh-suite/3.1.0
+# conda activation
 #source /net/archive/groups/plggtomlab/tools/miniconda3/etc/profile.d/conda.sh
-#conda activate microprot
+#conda activate microprot_old # TODO
 export PATH="/net/archive/groups/plggtomlab/tools/miniconda3/bin:$PATH"
-source activate microprot_old
-showtime "Conda activation time"
+source activate microprot_old # TODO
+showtime "Setup time"
 
 # Directories
 export MICRO_DIR=/net/archive/groups/plggtomlab/tools/microprot/microprot
@@ -69,7 +71,7 @@ PDB_DIR=$PLG_GROUPS_STORAGE/plggtomlab/dbs/pdb/
 PFAMDB_DIR=$PLG_GROUPS_STORAGE/plggtomlab/dbs/pfam/
 UNIDB_DIR=$PLG_GROUPS_STORAGE/plggtomlab/dbs/uniclust/uniclust30_2018_08/
 
-# ======= END OF MODIFIABLE SECTION ==========
+#======== END OF MODIFIABLE SECTION ==========
 
 echo -e "\nCreating input files / output & log folders..."
 timestamp; START=$(date +%s.%N)
@@ -80,6 +82,7 @@ mkdir -p $LOG_DIR $INP_DIR $OUT_DIR
 # Create input files with fasta sequences
 python $MICRO_DIR/scripts/parse_inputs.py -f \
 $UHGP_DIR/$UHGP_NAME -d $SEQ_ids -i $INP_DIR -o $LOG_DIR
+echo "Number of extracted sequences: " $(find $INP_DIR/*.fasta | wc -l)
 
 # Create separate output folder for every sequence
 cd $MICRO_DIR/slurm/
@@ -113,8 +116,7 @@ echo -e "\nHHSearch..."
 #======================
 timestamp; START=$(date +%s.%N)
 
-module load plgrid/tools/hh-suite/3.1.0
-SEQS=$(find $OUT_DIR/*/$CM_DIR_NAME/*.fasta | wc -l)
+SEQS=$(find $OUT_DIR/*/$DIR_NAME/*.fasta | wc -l)
 P=$SEQS
 if [ $P -gt $OMP_NUM_THREADS ] ; then  P=$OMP_NUM_THREADS ; fi
 export CORES=$(($OMP_NUM_THREADS/$P))
@@ -122,10 +124,9 @@ export EVALUE=0.1
 printparams $SEQS $P $CORES $OMP_NUM_THREADS $EVALUE
 
 cd $MICRO_DIR/slurm/
-find $OUT_DIR/*/$CM_DIR_NAME/*.fasta | xargs -t -d "\n" -P $P -n 1 ./run_hhsearch.sh
+find $OUT_DIR/*/$DIR_NAME/*.fasta | xargs -t -d "\n" -P $P -n 1 ./run_hhsearch.sh
 
-timestamp
-showtime "Computation time" 
+showtime "Computation time"
 
 #==========================
 echo -e "\nRemoving PDB..."
@@ -133,6 +134,7 @@ echo -e "\nRemoving PDB..."
 timestamp; START=$(date +%s.%N)
 
 rm -rf $MEMFS/pdb
+
 showtime "PDB removing time"
 
 #==========================
@@ -140,12 +142,124 @@ echo -e "\nCM splitting..."
 #==========================
 timestamp; START=$(date +%s.%N)
 
+export MATCH_EXP="non_match"  # create .fasta from non_match files
 export MAX_EVALUE=0.1
-export FRAG_LEN=40
+export MIN_FRAG_LEN=40
 echo "Max e-value:         " $MAX_EVALUE
-echo "Min fragment length: " $FRAG_LEN
+echo "Min fragment length: " $MIN_FRAG_LEN
 
 cd $MICRO_DIR/slurm/
 find $OUT_DIR/*/$DIR_NAME/*.out | xargs -t -d "\n" -P 24 -n 1 ./split_search.sh
 
 showtime "CM splitting time"
+
+#=============================================
+#                   Pfam
+#=============================================
+
+export STEP="Pfam"
+export DIR_NAME=$PFAM_DIR_NAME
+export NEXT_DIR_NAME=$MSA_DIR_NAME
+
+#==========================
+echo -e "\nLoading Pfam..."
+#==========================
+timestamp; START=$(date +%s.%N)
+
+mkdir -p $MEMFS/pfam
+cp $PFAMDB_DIR/*.ffindex $PFAMDB_DIR/*ffdata $MEMFS/pfam
+echo "DB content: "
+find $MEMFS/pfam -type f
+export MEMDB=$MEMFS/pfam/pfam
+
+showtime "Pfam loading time"
+
+#======================
+echo -e "\nHHSearch..."
+#======================
+timestamp; START=$(date +%s.%N)
+
+SEQS=$(find $OUT_DIR/*/$DIR_NAME/*.fasta | wc -l)
+P=$SEQS
+if [ $P -gt $OMP_NUM_THREADS ] ; then P=$OMP_NUM_THREADS ; fi
+export CORES=$(($OMP_NUM_THREADS/$P))
+export EVALUE=0.1
+printparams $SEQS $P $CORES $OMP_NUM_THREADS $EVALUE
+
+cd $MICRO_DIR/slurm/
+find $OUT_DIR/*/$DIR_NAME/*.fasta | xargs -t -d "\n" -P $P -n 1 ./run_hhsearch.sh
+
+showtime "Computation time"
+
+#===========================
+echo -e "\nRemoving Pfam..."
+#===========================
+timestamp; START=$(date +%s.%N)
+
+rm -rf $MEMFS/pfam
+
+showtime "Pfam removing time"
+
+#============================
+echo -e "\nPfam splitting..."
+#============================
+timestamp; START=$(date +%s.%N)
+
+export MATCH_EXP="match"  # create .fasta from both match and non_match files
+export MAX_EVALUE=0.01
+export MIN_PROB=90.0
+export MIN_FRAG_LEN=40
+echo "Max e-value:         " $MAX_EVALUE
+echo "Min probability:     " $MIN_PROB
+echo "Min fragment length: " $MIN_FRAG_LEN
+
+cd $MICRO_DIR/slurm/
+find $OUT_DIR/*/$DIR_NAME/*.out | xargs -t -d "\n" -P 24 -n 1 ./split_search.sh
+
+showtime "Pfam splitting time"
+
+#=============================================
+#                MSA HHblits
+#=============================================
+
+export STEP="MSA"
+export DIR_NAME=$MSA_DIR_NAME
+
+#==============================
+echo -e "\nLoading Uniclust..."
+#==============================
+timestamp; START=$(date +%s.%N)
+
+mkdir -p $MEMFS/uniclust
+cp $UNIDB_DIR/*index $UNIDB_DIR/*cs219 $UNIDB_DIR/*sizes $UNIDB_DIR/*dat* $MEMFS/uniclust
+echo "DB content: "
+find $MEMFS/uniclust -type f
+export MEMDB=$MEMFS/uniclust/uniclust30_2018_08
+
+showtime "Uniclust loading time"
+
+#=====================
+echo -e "\nHHblits..."
+#=====================
+timestamp; START=$(date +%s.%N)
+
+SEQS=$(find $OUT_DIR/*/$DIR_NAME/*.fasta | wc -l)
+P=$SEQS
+if [ $P -gt 6 ] ; then P=6 ; fi
+export CORES=$(($OMP_NUM_THREADS/$P))
+export EVALUE=0.001
+printparams $SEQS $P $CORES $OMP_NUM_THREADS $EVALUE
+
+cd $MICRO_DIR/slurm/
+find $OUT_DIR/*/$DIR_NAME/*.fasta | xargs -t -d "\n" -P $P -n 1 ./run_hhblits.sh
+
+showtime "Computation time"
+
+#===============================
+echo -e "\nRemoving Uniclust..."
+#===============================
+timestamp; START=$(date +%s.%N)
+
+rm -rf $MEMFS/uniclust
+
+showtime "Uniclust removing time"
