@@ -1,0 +1,43 @@
+#!/bin/bash
+
+# $1 should be of the form: FULLPATH/SAMPLE.EXTENSION
+FULLPATH=$(dirname "${1}")
+SAMPLE=$(basename "${1}")
+SAMPLE=${SAMPLE%.*} # remove .EXTENSION
+
+{
+    # Create .match and .non_match files
+
+    # Note: $MIN_PROB may not be present
+    if ! [ -z ${MIN_PROB+x} ] ; then  # if present
+      MIN_PROB="-p "${MIN_PROB}  # create flag with -p
+    fi
+
+    # Note: FLAGS and MIN_PROB arguments shall be unpacked
+    python "${MICRO_DIR}"/scripts/split_search.py "${1}" \
+    "${FULLPATH}"/"${SAMPLE}".fasta -o "${FULLPATH}"/"${SAMPLE}" \
+    ${FLAGS} -e "${MAX_EVALUE}" -l "${MIN_FRAG_LEN}" ${MIN_PROB}
+
+    # Mark and save sequences from the .match file
+    # into a file specific for the original sequence
+
+    MATCH="${FULLPATH}/${SAMPLE}.match"
+    if [ -s "${MATCH}" ]; then
+        # extract original sequence name
+        # (i.e. trim sequence range if exists)
+        CORE=$(echo "${SAMPLE}" | sed 's/_[0-9]\+-[0-9]\+$//')
+        python "${MICRO_DIR}"/scripts/write_db.py -f "${MATCH}" \
+        -s "${STEP}" -o "${FULLPATH}"/../log/"${CORE}" -v "${DB_NAME}"
+    fi
+    
+    # Create .fasta files for further processing
+
+    for MATCHED in "${FULLPATH}/${SAMPLE}".*"${MATCH_EXP}" ; do
+      if [ -s "${MATCHED}" ]; then
+          python "${MICRO_DIR}"/scripts/process_fasta.py \
+         -i "${MATCHED}" -o "${FULLPATH}"/../"${NEXT_DIR_NAME}"/ -s
+      fi
+    done
+
+} > "${FULLPATH}"/../log/"${SAMPLE}"_"${STEP}"_split.log \
+ 2> "${FULLPATH}"/../log/"${SAMPLE}"_"${STEP}"_split.err
