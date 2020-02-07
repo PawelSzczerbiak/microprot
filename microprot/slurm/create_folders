@@ -1,0 +1,16 @@
+#!/bin/bash
+
+# $1 should be of the form: FULLPATH/FILENAME.EXTENSION
+FILENAME=$(basename "${1}")
+FILENAME=${FILENAME%.*} # remove .EXTENSION
+
+# Create subfolders
+
+for i in "${CM_DIR_NAME}" "${PFAM_DIR_NAME}" "${MSA_DIR_NAME}" \
+    "${NOTRIPE_DIR_NAME}" "${ROSETTA_DIR_NAME}" "log" ; do
+    mkdir -p "${OUT_DIR}/${FILENAME}/${i}"
+done
+
+# Move input .fasta file to CM subfolder
+
+mv "${1}" "${OUT_DIR}/${FILENAME}/${CM_DIR_NAME}"
