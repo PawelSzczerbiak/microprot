@@ -1,0 +1,46 @@
+#!/bin/bash
+
+# $1 should be of the form: FULLPATH/SAMPLE.EXTENSION
+FULLPATH=$(dirname "${1}")
+SAMPLE=$(basename "${1}")
+SAMPLE=${SAMPLE%.*} # remove .EXTENSION
+
+{
+    # Generate file containing N_eff
+
+    NEFF_FILE="${FULLPATH}/${SAMPLE}.neff"
+    python "${MICRO_DIR}"/scripts/calculate_Neff.py \
+    -i "${1}" -o "${NEFF_FILE}" -c "${MSA_CUTOFF}"
+
+    # 1) Copy .a3m file into Rosetta / not ripe folder
+    #    Based on N_eff value
+    # 2) Save N_eff and processing step (Rosetta / not ripe)
+    #    to a file specific for the original sequence
+
+    if [ -s "${NEFF_FILE}" ]; then
+
+      # extract original sequence name
+      # (i.e. trim sequence range if exists)
+      CORE=$(echo "${SAMPLE}" | sed 's/_[0-9]\+-[0-9]\+$//')
+      # extract N_eff from the file
+      NEFF=$(head -n 1 "${NEFF_FILE}")
+
+      # check whether N_eff >= Min_N_eff
+      if (( $(bc -l <<< "${NEFF/e/E} >= ${MSA_MIN_NEFF/e/E}") )); then
+        STEP_WRITEDB="Rosetta"
+        cp "${1}" "${FULLPATH}"/../"${ROSETTA_DIR_NAME}"
+      else
+        STEP_WRITEDB="not ripe"
+        cp "${1}" "${FULLPATH}"/../"${NOTRIPE_DIR_NAME}"
+      fi
+
+      # round N_eff
+      NEFF=$(echo "${NEFF}" | awk '{printf "%.3f\n", $1}')
+      # save logs
+      python "${MICRO_DIR}"/scripts/write_db.py \
+      -f "${FULLPATH}/${SAMPLE}.fasta" -s "${STEP_WRITEDB} (${NEFF})" \
+      -o "${FULLPATH}"/../log/"${CORE}" -v "${DB_NAME}"
+    fi
+
+} > "${FULLPATH}"/../log/"${SAMPLE}"_"${STEP}".log \
+ 2> "${FULLPATH}"/../log/"${SAMPLE}"_"${STEP}".err
