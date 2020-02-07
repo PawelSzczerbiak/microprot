@@ -346,3 +346,115 @@ if [ ${SEQS} -gt 0 ]; then
   rm -rf "${MEMFS}"/uniclust
 
   showtime "Uniclust removing time"
+
+  #=============================================
+  #                 MSA ripe
+  #=============================================
+
+  export STEP="${RIPE_STEP}"
+  DIR_NAME="${MSA_DIR_NAME}"
+
+  #============================
+  header "Calculating N_eff..."
+  #============================
+  timestamp; start=$(date +%s.%N)
+
+  # NOTE: MSA cutoff and min neff are imported as MSA_CUTOFF and MSA_MIN_NEFF (see config)
+  printf "${format}" "Cutoff:" "${MSA_CUTOFF}" "Min N_eff:" "${MSA_MIN_NEFF}"
+  (
+    cd "${MICRO_DIR}"/slurm/
+    find "${OUT_DIR}"/*/"${DIR_NAME}"/*.a3m | xargs -d "\n" -P "${MAX_CORES_NEFF}" -n 1 ./calculate_Neff
+  )
+  showtime "Calculation time"
+else
+  printf "\n%s\n" "Pfam and MSA steps omitted - no sequences after the CM step."
+fi
+
+#=============================================
+#               Rules check
+#=============================================
+
+# CM and Pfam rules are the same except the regexp for (non_)match files
+
+# CM rules:
+# 1)  no. of .fasta files = no. of .a3m/.out files in CM dir (look for errors in _CM_hhsearch.err)
+# 2)  no. of lines in .non_match = no. of .fasta files in Pfam dir (look for errors in _CM_split.err)
+# 3)  _CM_split.err filies empty
+
+# Pfam rules:
+# 1)  no. of .fasta files = no of .a3m/.out files in Pfam dir (look for errors in _Pfam_hhsearch.err)
+# 2)  no. of lines in .non_match + .match = no of .fasta files in MSA dir (look for errors in _Pfam_split.err)
+# 3)  _Pfam_split.err filies empty
+
+# MSA rules:
+# 1)  no. of .fasta files = no of .a3m/.out files in MSA dir (look for errors in _MSA_hhblits.err)
+# 2)  no. of .fasta files = no of .neff files in MSA dir (look for errors in _Ripe.err)
+# 3)  no. of .fasta files = no of .a3m files in NOTRIPE + ROSETTA dirs (look for errors in _Ripe.err)
+# 4)  _Ripe.err filies empty
+
+#=========================
+header "Checking rules..."
+#=========================
+timestamp; start=$(date +%s.%N)
+
+export ERR_DIR="${LOG_DIR}/problematic_sequences"
+rm -rf "${ERR_DIR}"
+mkdir -p "${ERR_DIR}"
+(
+  cd "${MICRO_DIR}"/slurm/
+
+  export STEP="${CM_STEP}"
+  export MATCH_EXP="${CM_MATCH_EXP}"
+  export NEXT_DIR_NAME="${PFAM_DIR_NAME}"
+  find "${OUT_DIR}"/*/"${CM_DIR_NAME}"/*.fasta | xargs -d "\n" -P "${OMP_NUM_THREADS}" -n 1 ./check_standard
+
+  export STEP="${PFAM_STEP}";
+  export MATCH_EXP="${PFAM_MATCH_EXP}"
+  export NEXT_DIR_NAME="${MSA_DIR_NAME}"
+  find "${OUT_DIR}"/*/"${PFAM_DIR_NAME}"/*.fasta | xargs -d "\n" -P "${OMP_NUM_THREADS}" -n 1 ./check_standard
+
+  export STEP="${MSA_STEP}"
+  find "${OUT_DIR}"/*/"${MSA_DIR_NAME}"/*.fasta | xargs -d "\n" -P "${OMP_NUM_THREADS}" -n 1 ./check_MSA
+)
+
+showtime "Checking time"
+
+# Do not copy files and update logs when testing
+if [[ ${BATCH,,} != *"test"* ]]; then
+
+  #============================
+  header "Organizing output..."
+  #============================
+  timestamp; start=$(date +%s.%N)
+
+  # 1) Create lists:
+  #  - problematic_sequences_A.out with sequences that failed to be checked
+  #  - problematic_sequences_B.out with sequences that failed when being checked
+  # 2) Create archives for the rest of sequences and move them to result directory
+  #    along with Rosetta .a3m files
+  # 3) Update *db.index file(s)
+  # 4) Update *submited_sequences.out file(s)
+  (
+    cd "${MICRO_DIR}"/slurm/
+    find "${OUT_DIR}"/*/"${CM_DIR_NAME}"/*.fasta | xargs -d "\n" -P "${OMP_NUM_THREADS}" -n 1 ./organize_output
+  )
+  # TODO One more list:
+  # problematic_sequences_C.out with unprocessed sequences
+
+  # Update destination directory
+  rsync -rzq "${RES_DIR}/tmp_output/${BATCH}/"* "${DEST_DIR}"
+
+  # Remove output folder if empty
+  if [ -z "$(ls -A "${OUT_DIR}")" ]; then
+    rm -rf "${OUT_DIR}"
+    test $? -eq 0 && printf "\n%s %s\n\n" "Removed:" "${OUT_DIR}"
+  else
+    printf "%s %s. %s\n" "Cannot remove" "${OUT_DIR}" "Folder not empty!"
+  fi
+
+  # Save SLURM_JOB_ID
+  echo "${BATCH} # ${SLURM_JOB_ID} # $(date +%Y-%m-%d_%H:%M:%S)" >> "${RES_DIR}/job_mapping.out"
+  showtime "Organizing output time"
+fi
+
+showtime "Total time" "${start_total}"
