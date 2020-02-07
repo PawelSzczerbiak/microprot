@@ -1,0 +1,62 @@
+#!/bin/bash
+
+# $1 should be of the form: FULLPATH/SAMPLE.EXTENSION
+FULLPATH=$(dirname "${1}")
+SAMPLE=$(basename "${1}")
+SAMPLE=${SAMPLE%.*} # remove .EXTENSION
+# extract original sequence name i.e. trim sequence range if exists
+CORE=$(echo "${SAMPLE}" | sed 's/_[0-9]\+-[0-9]\+$//')
+
+printlogs(){
+  # $1 - sample
+  # $2 - rule ID
+  # $3 - message
+  # $4 - logfile
+  echo $"${1}\n\t${2}\n\t${3}\n\tSee ${4} for details\n"
+}
+{
+    # path where to look for errors
+    CHECK_PATH="$(dirname "${FULLPATH}")/log"
+    # file used in rules 2, 3, 4
+    LOG_RIPE="${CHECK_PATH}/${SAMPLE}_Ripe.err"
+
+    # Rule 1
+
+    if ! [ -s "${FULLPATH}/${SAMPLE}.a3m" ] || \
+       ! [ -s "${FULLPATH}/${SAMPLE}.out" ]; then
+       message="Cannot find .a3m/.out file \
+       corresponding to ${SAMPLE}.fasta file"
+       log_f="${CHECK_PATH}/${SAMPLE}_${STEP}_hhblits.err"
+       err=$(printlogs "${SAMPLE}" "${STEP}_1" "${message}" "${log_f}")
+       echo -e ${err} >> "${ERR_DIR}/${CORE}.log"
+    fi
+
+    # Rule 2
+
+    if ! [ -s "${FULLPATH}/${SAMPLE}.neff" ]; then
+       message="Cannot find .neff file \
+       corresponding to ${SAMPLE}.fasta file"
+       err=$(printlogs "${SAMPLE}" "${STEP}_2" "${message}" "${LOG_RIPE}")
+       echo -e ${err} >> "${ERR_DIR}/${CORE}.log"
+    fi
+
+    # Rule 3
+
+    if ! [ -s "${FULLPATH}"/../"${ROSETTA_DIR_NAME}/${SAMPLE}.a3m" ] && \
+       ! [ -s "${FULLPATH}"/../"${NOTRIPE_DIR_NAME}/${SAMPLE}.a3m" ]; then
+       message="Cannot find ${SAMPLE}.a3m file \
+       in neither ${ROSETTA_DIR_NAME} nor ${NOTRIPE_DIR_NAME} directory"
+       err=$(printlogs "${SAMPLE}" "${STEP}_3" "${message}" "${LOG_RIPE}")
+       echo -e ${err} >> "${ERR_DIR}/${CORE}.log"
+    fi
+
+    # Rule 4
+
+    if [ -s "${LOG_RIPE}" ]; then
+       message="File $(basename "${LOG_RIPE}") not empty"
+       err=$(printlogs "${SAMPLE}" "${STEP}_4" "${message}" "${LOG_RIPE}")
+       echo -e ${err} >> "${ERR_DIR}/${CORE}.log"
+    fi
+
+} > "${FULLPATH}"/../log/"${SAMPLE}"_check_"${STEP}".log \
+ 2> "${FULLPATH}"/../log/"${SAMPLE}"_check_"${STEP}".err

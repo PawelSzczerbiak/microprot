@@ -1,0 +1,58 @@
+#!/bin/bash
+
+# $1 should be of the form: FULLPATH/SAMPLE.EXTENSION
+FULLPATH=$(dirname "${1}")
+SAMPLE=$(basename "${1}")
+SAMPLE=${SAMPLE%.*} # remove .EXTENSION
+# extract original sequence name i.e. trim sequence range if exists
+CORE=$(echo "${SAMPLE}" | sed 's/_[0-9]\+-[0-9]\+$//')
+
+printlogs(){
+  # $1 - sample
+  # $2 - rule ID
+  # $3 - message
+  # $4 - logfile
+  echo $"${1}\n\t${2}\n\t${3}\n\tSee ${4} for details\n"
+}
+{
+    # path where to look for errors
+    CHECK_PATH="$(dirname "${FULLPATH}")/log"
+    # file used in rules 2, 3
+    LOG_SPLIT="${CHECK_PATH}/${SAMPLE}_${STEP}_split.err"
+
+    # Rule 1
+
+    if ! [ -s "${FULLPATH}/${SAMPLE}.a3m" ] || \
+       ! [ -s "${FULLPATH}/${SAMPLE}.out" ]; then
+       message="Cannot find .a3m/.out file \
+       corresponding to ${SAMPLE}.fasta file"
+       log_f="${CHECK_PATH}/${SAMPLE}_${STEP}_hhsearch.err"
+       err=$(printlogs "${SAMPLE}" "${STEP}_1" "${message}" "${log_f}")
+       echo -e ${err} >> "${ERR_DIR}/${CORE}.log"
+    fi
+
+    # Rule 2
+
+    # if there is more than one *match file, grep outputs
+    # full path in front of '>' e.g. PATH:>SAMPLE_1-2 ...
+    matched=($(grep '^>' "${FULLPATH}/${SAMPLE}".*"${MATCH_EXP}" 2>/dev/null | \
+    sed -e 's/.*>//' -e 's/\s.*//'))
+    for seq in "${matched[@]}"; do
+      if ! [ -s "${FULLPATH}"/../"${NEXT_DIR_NAME}/${seq}.fasta" ]; then
+        message="Cannot find ${seq}.fasta file ${NEXT_DIR_NAME} \
+        directory corresponding to sequence in *${MATCH_EXP} file"
+        err=$(printlogs "${SAMPLE}" "${STEP}_2" "${message}" "${LOG_SPLIT}")
+        echo -e ${err} >> "${ERR_DIR}/${CORE}.log"
+      fi
+    done
+
+    # Rule 3
+
+    if [ -s "${LOG_SPLIT}" ]; then
+       message="File $(basename "${LOG_SPLIT}") not empty"
+       err=$(printlogs "${SAMPLE}" "${STEP}_3" "${message}" "${LOG_SPLIT}")
+       echo -e ${err} >> "${ERR_DIR}/${CORE}.log"
+    fi
+
+} > "${FULLPATH}"/../log/"${SAMPLE}"_check_"${STEP}".log \
+ 2> "${FULLPATH}"/../log/"${SAMPLE}"_check_"${STEP}".err
