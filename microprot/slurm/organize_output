@@ -1,0 +1,57 @@
+#!/bin/bash
+
+# $1 should be of the form: FULLPATH/FILENAME.EXTENSION
+FULLPATH=$(dirname "${1}")
+FILENAME=$(basename "${1}")
+SEQ_NAME=${FILENAME%.*} # remove .EXTENSION
+SEQ_PATH=$(dirname "${FULLPATH}")
+
+seq_id=($( awk '/^'"${SEQ_NAME}"'/{print $NF}' "${LOG_DIR}/mapping.tsv" 2> /dev/null ))
+
+# Utility variables for class A (see below)
+not_checked=false
+check_err_files=($( find "${SEQ_PATH}/log/${SEQ_NAME}"*_check_*.err 2> /dev/null ))
+if [ -z "${check_err_files}" ]; then
+  not_checked=true
+else
+  for file in "${check_err_files[@]}" ; do
+    if [ -s "${file}" ]; then
+      not_checked=true
+    fi
+  done
+fi
+
+# Class A: no "*_check_*.err" files or at least one of them is not empty
+if [ "${not_checked}" = true ]; then
+  printf "%s %s\n" "${SEQ_NAME}" "${seq_id}" >> \
+  "${LOG_DIR}/problematic_sequences_A.out"
+# Class B: sequence is listed in problematic_sequences folder
+elif [ -s "${LOG_DIR}/problematic_sequences/${SEQ_NAME}.log" ]; then
+  printf "%s %s\n" "${SEQ_NAME}" "${seq_id}" >> \
+  "${LOG_DIR}/problematic_sequences_B.out"
+# If sequence wasn't mapped properly
+elif [ -z "${seq_id}" ]; then
+  printf "%s %s. %s\n" "Problem with sequence" "${SEQ_NAME}" "No id in mapping.tsv"
+# If everything is OK...
+else
+  # create archive and move it along with .a3m files
+  # to the temporary result folder
+  range_a=$(( ( (seq_id - 1) / RES_SEPARATOR ) * RES_SEPARATOR + 1 ))
+  range_b=$(( range_a + RES_SEPARATOR - 1 ))
+  res_path="${RES_DIR}/tmp_output/${BATCH}/${range_a}_${range_b}"
+  mkdir -p "${res_path}/rosetta/" "${res_path}/archive/"
+  cd "${OUT_DIR}"
+  tar -zcf "${SEQ_NAME}".tar.gz "${SEQ_NAME}"; ARCHIVE_CODE=$?
+  mv "${SEQ_NAME}".tar.gz "${res_path}/archive/"
+  cp "${SEQ_NAME}/${ROSETTA_DIR_NAME}/"*.a3m "${res_path}/rosetta/" 2> /dev/null
+  # update db.index file (one per range)
+  cat "${SEQ_NAME}/log/${SEQ_NAME}.index" >> \
+   "${RES_DIR}/output/${range_a}_${range_b}_db.index"
+  # update submitted_sequences file (one per range)
+  echo "${seq_id} # ${SEQ_NAME} # ${BATCH} # $(date +%Y-%m-%d_%H:%M:%S)" >> \
+   "${RES_DIR}/output/${range_a}_${range_b}_submitted_sequences.out"
+  # Remove data for specific sequence from the output folder
+  if [ ${ARCHIVE_CODE} -eq 0 ] && [ -s "${res_path}/archive/${SEQ_NAME}.tar.gz" ]; then
+    rm -rf "${OUT_DIR}/${SEQ_NAME}"
+  fi
+fi
