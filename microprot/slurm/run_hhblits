@@ -1,0 +1,16 @@
+#!/bin/bash
+
+# $1 should be of the form: FULLPATH/SAMPLE.EXTENSION
+FULLPATH=$(dirname "${1}")
+SAMPLE=$(basename "${1}")
+SAMPLE=${SAMPLE%.*} # remove .EXTENSION
+
+export OMP_NUM_THREADS=${CORES}
+
+{
+  # Note: MSA_PARAMS argument shall be unpacked
+  hhblits -cpu "${CORES}" -i "${1}" -d "${MEMDB}" ${MSA_PARAMS} \
+  -o "${FULLPATH}/${SAMPLE}.out" -oa3m "${FULLPATH}/${SAMPLE}.a3m"
+
+} > "${FULLPATH}"/../log/"${SAMPLE}"_"${STEP}"_hhblits.log \
+ 2> "${FULLPATH}"/../log/"${SAMPLE}"_"${STEP}"_hhblits.err

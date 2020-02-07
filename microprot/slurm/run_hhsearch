@@ -1,0 +1,16 @@
+#!/bin/bash
+
+# $1 should be of the form: FULLPATH/SAMPLE.EXTENSION
+FULLPATH=$(dirname "${1}")
+SAMPLE=$(basename "${1}")
+SAMPLE=${SAMPLE%.*} # remove .EXTENSION
+
+export OMP_NUM_THREADS=${CORES}
+
+{
+  # Note: PARAMS argument shall be unpacked
+  hhsearch -cpu "${CORES}" -i "${1}" -d "${MEMDB}" ${PARAMS} \
+  -o "${FULLPATH}/${SAMPLE}.out" -oa3m "${FULLPATH}/${SAMPLE}.a3m"
+
+} > "${FULLPATH}"/../log/"${SAMPLE}"_"${STEP}"_hhsearch.log \
+ 2> "${FULLPATH}"/../log/"${SAMPLE}"_"${STEP}"_hhsearch.err
