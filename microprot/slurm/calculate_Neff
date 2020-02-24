@@ -42,5 +42,4 @@ SAMPLE=${SAMPLE%.*} # remove .EXTENSION
       -o "${FULLPATH}"/../log/"${CORE}" -v "${DB_NAME}"
     fi
 
-} > "${FULLPATH}"/../log/"${SAMPLE}"_"${STEP}".log \
- 2> "${FULLPATH}"/../log/"${SAMPLE}"_"${STEP}".err
+} > /dev/null 2> "${FULLPATH}"/../log/"${SAMPLE}"_"${STEP}".err

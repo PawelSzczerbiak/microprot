@@ -22,7 +22,7 @@ from skbio import io
 def parse_inputs(inp_fp, inp_identifier, microprot_inp, microprot_out):
     """ Parse multi-sequence FASTA file into single-sequence, remove any
     problematic characters from the name and add information to
-    `processed_sequences.fasta` file and `mapping.tsv` file.
+    `extracted_sequences.fasta` file and `mapping.tsv` file.
 
     Returns
     -------
@@ -46,7 +46,7 @@ def parse_inputs(inp_fp, inp_identifier, microprot_inp, microprot_out):
     SEQS = process_fasta.extract_sequences(inp_fp, identifiers=inp_ids)
     SEQ_ids = []
     processed_fh = open('%s/%s' % (microprot_out,
-                                   'processed_sequences.fasta'), 'a')
+                                   'extracted_sequences.fasta'), 'a')
     mapping_fh = open('%s/%s' % (microprot_out,
                                  'mapping.tsv'), 'a')
     for i, SEQ in enumerate(SEQS):
@@ -60,7 +60,7 @@ def parse_inputs(inp_fp, inp_identifier, microprot_inp, microprot_out):
                                                             _seq))
         io.write(SEQ, format='fasta',
                  into=processed_fh)
-        mapping_fh.write("%i\t%s\n" % (inp_ids[i], _seq))
+        mapping_fh.write("%s\t%i\n" % (_seq, inp_ids[i]))
     processed_fh.close()
     mapping_fh.close()
     return SEQ_ids

@@ -58,5 +58,4 @@ printlogs(){
        echo -e ${err} >> "${ERR_DIR}/${CORE}.log"
     fi
 
-} > "${FULLPATH}"/../log/"${SAMPLE}"_check_"${STEP}".log \
- 2> "${FULLPATH}"/../log/"${SAMPLE}"_check_"${STEP}".err
+} > /dev/null 2> "${FULLPATH}"/../log/"${SAMPLE}"_check_"${STEP}".err

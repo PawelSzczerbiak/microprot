@@ -39,5 +39,4 @@ SAMPLE=${SAMPLE%.*} # remove .EXTENSION
       fi
     done
 
-} > "${FULLPATH}"/../log/"${SAMPLE}"_"${STEP}"_split.log \
- 2> "${FULLPATH}"/../log/"${SAMPLE}"_"${STEP}"_split.err
+} > /dev/null 2> "${FULLPATH}"/../log/"${SAMPLE}"_"${STEP}"_split.err

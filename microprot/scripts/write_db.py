@@ -35,7 +35,7 @@ def msa_size(msa_fp):
               help='File path to a multi-sequence FASTA file.')
 @click.option('--step', '-s', required=True,
               help='Processing step information (e.g. CM, Pfam).')
-@click.option('--version', '-v', required=False, default=1,
+@click.option('--version', '-v', required=False, default="1",
               help='Processing version.')
 @click.option('--db_fp', '-o', required=True,
               type=click.Path(resolve_path=True, readable=True, exists=False),
@@ -53,7 +53,7 @@ def write_db(fname, step, version, db_fp):
         msa_size_len = msa_size(fname)
 
         # > protein_name # source # msa_size # commit_no # timestamp
-        append_idx = '>%s # %s # %i # %i # %s\n' % (prot_name,
+        append_idx = '>%s # %s # %i # %s # %s\n' % (prot_name,
                                                     step,
                                                     msa_size_len,
                                                     version,

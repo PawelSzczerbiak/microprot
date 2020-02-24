@@ -34,16 +34,17 @@ elif [ -z "${seq_id}" ]; then
   printf "%s %s. %s\n" "Problem with sequence" "${SEQ_NAME}" "No id in mapping.tsv"
 # If everything is OK...
 else
-  # create archive and move it along with .a3m files
+  # create archive and move it along with .a3m files (Rosetta / not ripe)
   # to the temporary result folder
   range_a=$(( ( (seq_id - 1) / RES_SEPARATOR ) * RES_SEPARATOR + 1 ))
   range_b=$(( range_a + RES_SEPARATOR - 1 ))
   res_path="${RES_DIR}/tmp_output/${BATCH}/${range_a}_${range_b}"
-  mkdir -p "${res_path}/rosetta/" "${res_path}/archive/"
+  mkdir -p "${res_path}/rosetta/" "${res_path}/notripe/" "${res_path}/archive/"
   cd "${OUT_DIR}"
   tar -zcf "${SEQ_NAME}".tar.gz "${SEQ_NAME}"; ARCHIVE_CODE=$?
   mv "${SEQ_NAME}".tar.gz "${res_path}/archive/"
   cp "${SEQ_NAME}/${ROSETTA_DIR_NAME}/"*.a3m "${res_path}/rosetta/" 2> /dev/null
+  cp "${SEQ_NAME}/${NOTRIPE_DIR_NAME}/"*.a3m "${res_path}/notripe/" 2> /dev/null
   # update db.index file (one per range)
   cat "${SEQ_NAME}/log/${SEQ_NAME}.index" >> \
    "${RES_DIR}/output/${range_a}_${range_b}_db.index"

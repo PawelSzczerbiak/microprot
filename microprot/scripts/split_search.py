@@ -250,7 +250,7 @@ def parse_pdb_match(filename):
     """
     hits = []
     try:
-        fh = open(filename, 'r')
+        fh = open(filename, 'r', errors='ignore')
         line = ""
 
         # read until header of summary table is found
@@ -282,7 +282,7 @@ def parse_pdb_match(filename):
         for idx in range(len(hits)):
             for key in alignments[idx]:
                 hits[idx][key] = alignments[idx][key]
-            # duplicate information, but more precicse on other place
+            # duplicate information, but more precise on other place
             del hits[idx][_HEADER[2]]  # Prob
             del hits[idx][_HEADER[8]]  # Query HMM
             del hits[idx][_HEADER[9]]  # Template HMM
