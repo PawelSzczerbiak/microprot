@@ -1,10 +1,12 @@
 import re
 import math
-import click
-from scipy.cluster.hierarchy import linkage, fcluster
-from skbio import io, Protein, TabularMSA, DistanceMatrix
-from skbio.sequence.distance import hamming
+import numpy as np
 
+from scipy import spatial
+from scipy.cluster.hierarchy import linkage, fcluster
+from skbio import io, Protein, TabularMSA
+
+import click
 
 """
 Calculate effective family size of a multiple sequence alignment with a given
@@ -34,26 +36,21 @@ def parse_msa_file(infile):
     return TabularMSA(seqs)
 
 
-def hamming_distance_matrix(msa, ignore_sequence_ids=False):
+def hamming_distance_matrix(msa):
     """Compute Hamming distance matrix of an MSA.
 
     Parameters
     ----------
     msa : skbio TabularMSA
         Aligned sequences for calculating pairwise Hamming distances
-    ignore_sequence_ids : bool
-        Default is False. If true, ignore sequence identifier of alignment.
-        Useful if identifier got truncated by alignment producing program such
-        that different sequences collapse to the same identifier.
 
     Returns
     -------
-    skbio DistanceMatrix
+    ndarray
     """
-    key = 'id'
-    if ignore_sequence_ids:
-        key = None
-    return DistanceMatrix.from_iterable(msa, hamming, key=key, validate=False)
+    msa = [[ord(str(r)) for r in seq] for seq in iter(msa)]
+    msa = np.asarray(msa)
+    return spatial.distance.pdist(msa, metric='hamming')
 
 
 def cluster_sequences(dm, cutoff):
@@ -61,7 +58,7 @@ def cluster_sequences(dm, cutoff):
 
     Parameters
     ----------
-    dm : skbio DistanceMatrix
+    dm : ndarray
         aligned sequences for calculating pairwise Hamming distances
     cutoff : float
         sequence percent identity cutoff for defining clusters
@@ -77,7 +74,8 @@ def cluster_sequences(dm, cutoff):
     one input sequence)
     """
     t = 1.0 - cutoff / 100.0
-    return list(fcluster(linkage(dm.condensed_form()), t,
+
+    return list(fcluster(linkage(dm), t,
                 criterion='distance')) if dm.size > 1 else []
 
 
