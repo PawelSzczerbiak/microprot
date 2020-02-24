@@ -1,0 +1,24 @@
+#!/bin/bash
+
+# CM
+
+CM_PARAMS="-e 0.1 -Z 2000 -B 2000"
+CM_MAX_EVALUE=0.1
+CM_MIN_FRAG_LEN=40
+
+# Pfam
+
+PFAM_PARAMS="-e 0.1 -Z 2000 -B 2000"
+PFAM_MAX_EVALUE=0.01
+PFAM_MIN_PROB=90.0
+PFAM_MIN_FRAG_LEN=40
+
+# MSA
+
+# Note: the parameters below shall be exported!
+export MSA_PARAMS="-n 3 -e 0.01 -diff inf -cov 50 -Z 10000 -B 10000"
+export MSA_CUTOFF=80
+export MSA_MIN_NEFF=16
+
+# Result folder separator
+export RES_SEPARATOR=10000
