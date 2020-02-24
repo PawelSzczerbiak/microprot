@@ -1,14 +1,14 @@
 #!/bin/bash -l
 
-#SBATCH -J test_micro
+#SBATCH -J micro_localfs
 #SBATCH -N 1
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=24
 #SBATCH --mem=120GB
-#SBATCH --time=00:05:00
+#SBATCH --time=00:30:00
 #SBATCH -A tomaszlabmcb1
 #SBATCH -p plgrid-testing
-#SBATCH -C memfs
+#SBATCH -C localfsg
 
 #=============================================
 #       UTILITY FUNCTIONS & VARIABLES
@@ -32,7 +32,7 @@ printparams() {
   printf "${format}" \
     "Number of seqs :" "${1}" \
     "Parallelization:" "${2}" \
-    "Number of cores:" "${3}" \
+    "Cores per seq. :" "${3}" \
     "OMP_NUM_THREADS:" "${4}" \
     "hh-suite params:" "${5}"
 }
@@ -50,36 +50,57 @@ header() {
 # 1) Arguments
 
 # number of expected arguments
-readonly no_of_args=12
+readonly no_of_args=14
 
 if [ $# -ne ${no_of_args} ]; then
   printf "%s %s %s %s\n" "ERROR: expected" "${no_of_args}" "arguments got:" $#
   args=("$@")
   for i in "${!args[@]}"; do
-      printf "%s:\t%s\n" "$((i+1))" "${args[$i]}"
+    printf "%s:\t%s\n" "$((i + 1))" "${args[$i]}"
   done
   exit 1
 fi
 
-readonly BATCH="${1}"
-readonly SEQ_IDs="${2}"
-readonly UHGP_NAME="${3}"
-readonly PDB_NAME="${4}"
-readonly PFAM_NAME="${5}"
-readonly UNICLUST_NAME="${6}"
-readonly MAX_CORES_CM="${7}"
-readonly MAX_CORES_PFAM="${8}"
-readonly MAX_CORES_MSA="${9}"
-readonly MAX_CORES_NEFF="${10}"
-readonly CONFIG="${11}"
-readonly DEST_DIR="${12}"
+readonly BATCH_NAME="${1}"
+readonly RANGE="${2}"
+SEQ_IDs="${3}" # might be overriten if $RANGE contains delimeter
+readonly UHGP_VERSION="${4}"
+readonly UHGP_NAME="${5}"
+readonly PDB_NAME="${6}"
+readonly PFAM_NAME="${7}"
+readonly UNICLUST_NAME="${8}"
+readonly MAX_CORES_CM="${9}"
+readonly MAX_CORES_PFAM="${10}"
+readonly MAX_CORES_MSA="${11}"
+readonly MAX_CORES_NEFF="${12}"
+readonly CONFIG="${13}"
+readonly DEST_DIR="${14}"
 
-export BATCH # used in organize_output script
+if [[ "${RANGE}" =~ [0-9]+-[0-9]+ ]]; then
+  # extract range limits e.g. 5_8 -> 5 8
+  RANGE_AB=$(echo "${RANGE}" | awk -F'-' '{print $1,$2}')
+  RANGE_AB=(${RANGE_AB}) # create table
+  # create sequence 5 8 -> 5,6,7,8
+  RANGE_SEQ=($(seq "${RANGE_AB[0]}" "${RANGE_AB[1]}"))
+  # assign proper batch ID based on task ID e.g. 5,6,7,8 -> 7 for task ID equal 3
+  BATCH_ID=${RANGE_SEQ[${SLURM_ARRAY_TASK_ID} - 1]}
+  # create sequence range e.g. 7 -> 7001-8000
+  SEQ_IDs="$((BATCH_ID * 1000 + 1))-$(((BATCH_ID + 1) * 1000))"
+else
+  BATCH_ID="${RANGE}"
+fi
+
+export BATCH="${BATCH_NAME}_${BATCH_ID}"
 
 printf "$format" \
   "Slurm job ID:" "${SLURM_JOB_ID}" \
-  "Batch name:" "${BATCH}" \
+  "Array job ID:" "${SLURM_ARRAY_JOB_ID}" \
+  "Array task ID:" "${SLURM_ARRAY_TASK_ID}" \
+  "Batch name:" "${BATCH_NAME}" \
+  "Batch:" "${BATCH}" \
+  "Range:" "${RANGE}" \
   "Sequence ids:" "${SEQ_IDs}" \
+  "UHGP DB version:" "${UHGP_VERSION}" \
   "UHGP DB name:" "${UHGP_NAME}" \
   "PDB DB name:" "${PDB_NAME}" \
   "Pfam DB name:" "${PFAM_NAME}" \
@@ -90,6 +111,11 @@ printf "$format" \
   "Max cores for NEFF:" "${MAX_CORES_NEFF}" \
   "Config file:" "${CONFIG}" \
   "Destination directory:" "${DEST_DIR}"
+
+if [[ -z ${BATCH_ID} ]]; then
+    >&2 printf "ERROR: BATCH_ID variable cannot be created.\n"
+    exit 1
+fi
 
 printf "\n%s\n" "Setup environment..."
 timestamp; start=$(date +%s.%N)
@@ -120,7 +146,7 @@ PFAM_STEP="Pfam"
 MSA_STEP="MSA"
 RIPE_STEP="Ripe"
 # databases
-UHGP_DIR="${MAIN_DIR}/dbs/uhgp/"
+UHGP_DIR="${MAIN_DIR}/dbs/uhgp/${UHGP_VERSION}"
 PDB_DIR="${MAIN_DIR}/dbs/pdb/${PDB_NAME}"
 PFAMDB_DIR="${MAIN_DIR}/dbs/pfam/${PFAM_NAME}"
 UNIDB_DIR="${MAIN_DIR}/dbs/uniclust/${UNICLUST_NAME}"
@@ -140,7 +166,7 @@ source activate microprot_old # TODO
 # 4) Parameters
 
 CM_MATCH_EXP="non_match" # create .fasta from .non_match files
-PFAM_MATCH_EXP="match" # create .fasta from both .match and .non_match files
+PFAM_MATCH_EXP="match"   # create .fasta from both .match and .non_match files
 
 showtime "Setup time"
 
@@ -180,11 +206,11 @@ header "Loading PDB..."
 #======================
 timestamp; start=$(date +%s.%N)
 
-mkdir -p "${MEMFS}"/pdb
-cp "${PDB_DIR}"/*.ffindex "${PDB_DIR}"/*.tsv "${PDB_DIR}"/*dat* "${MEMFS}"/pdb
+mkdir -p "${LOCALFS}"/pdb
+cp "${PDB_DIR}"/*.ffindex "${PDB_DIR}"/*.ffdata "${LOCALFS}"/pdb
 printf "%s\n" "DB content:"
-find "${MEMFS}"/pdb -type f
-export MEMDB="${MEMFS}/pdb/${PDB_NAME/_*/}"  # e.g. pdb70_2019_12 -> pdb70
+find "${LOCALFS}"/pdb -type f
+export MEMDB="${LOCALFS}/pdb/${PDB_NAME/_*/}"  # e.g. pdb70_2019_12 -> pdb70
 export DB_NAME="${PDB_NAME}"
 
 showtime "PDB loading time"
@@ -211,7 +237,7 @@ header "Removing PDB..."
 #=======================
 timestamp; start=$(date +%s.%N)
 
-rm -rf "${MEMFS}"/pdb
+rm -rf "${LOCALFS}"/pdb
 
 showtime "PDB removing time"
 
@@ -236,7 +262,7 @@ showtime "CM splitting time"
 
 export STEP="${PFAM_STEP}"
 DIR_NAME="${PFAM_DIR_NAME}"
-SEQS=$(find "${OUT_DIR}"/*/"${DIR_NAME}"/*.fasta | wc -l)
+SEQS=$(find "${OUT_DIR}"/*/"${DIR_NAME}"/*.fasta 2> /dev/null | wc -l)
 
 # Pfam and further steps are performed only
 # when the CM step didnt exclude all sequences
@@ -249,11 +275,11 @@ if [ ${SEQS} -gt 0 ]; then
   #=======================
   timestamp; start=$(date +%s.%N)
 
-  mkdir -p "${MEMFS}"/pfam
-  cp "${PFAMDB_DIR}"/*.ffindex "${PFAMDB_DIR}"/*ffdata "${MEMFS}"/pfam
+  mkdir -p "${LOCALFS}"/pfam
+  cp "${PFAMDB_DIR}"/*.ffindex "${PFAMDB_DIR}"/*.ffdata "${LOCALFS}"/pfam
   printf "%s\n" "DB content:"
-  find "${MEMFS}"/pfam -type f
-  export MEMDB="${MEMFS}"/pfam/pfam
+  find "${LOCALFS}"/pfam -type f
+  export MEMDB="${LOCALFS}"/pfam/pfam
   export DB_NAME="${PFAM_NAME}"
 
   showtime "Pfam loading time"
@@ -279,7 +305,7 @@ if [ ${SEQS} -gt 0 ]; then
   #========================
   timestamp; start=$(date +%s.%N)
 
-  rm -rf "${MEMFS}"/pfam
+  rm -rf "${LOCALFS}"/pfam
 
   showtime "Pfam removing time"
 
@@ -312,11 +338,11 @@ if [ ${SEQS} -gt 0 ]; then
   #===========================
   timestamp; start=$(date +%s.%N)
 
-  mkdir -p "${MEMFS}"/uniclust
-  cp "${UNIDB_DIR}"/*index "${UNIDB_DIR}"/*cs219 "${UNIDB_DIR}"/*sizes "${UNIDB_DIR}"/*dat* "${MEMFS}"/uniclust
+  mkdir -p "${LOCALFS}"/uniclust
+  cp "${UNIDB_DIR}"/*.ffindex "${UNIDB_DIR}"/*.ffdata "${LOCALFS}"/uniclust
   printf "%s\n" "DB content:"
-  find "${MEMFS}"/uniclust -type f
-  export MEMDB="${MEMFS}/uniclust/${UNICLUST_NAME}"
+  find "${LOCALFS}"/uniclust -type f
+  export MEMDB="${LOCALFS}/uniclust/${UNICLUST_NAME}"
   export DB_NAME="${UNICLUST_NAME}"
 
   showtime "Uniclust loading time"
@@ -326,7 +352,7 @@ if [ ${SEQS} -gt 0 ]; then
   #==================
   timestamp; start=$(date +%s.%N)
 
-  SEQS=$(find "${OUT_DIR}"/*/"${DIR_NAME}"/*.fasta | wc -l)
+  SEQS=$(find "${OUT_DIR}"/*/"${DIR_NAME}"/*.fasta 2> /dev/null | wc -l)
   P="${SEQS}"
   if [ ${P} -gt ${MAX_CORES_MSA} ]; then P=${MAX_CORES_MSA}; fi
   export CORES=$((${OMP_NUM_THREADS} / ${P}))
@@ -343,7 +369,7 @@ if [ ${SEQS} -gt 0 ]; then
   #============================
   timestamp; start=$(date +%s.%N)
 
-  rm -rf "${MEMFS}"/uniclust
+  rm -rf "${LOCALFS}"/uniclust
 
   showtime "Uniclust removing time"
 
@@ -411,10 +437,10 @@ mkdir -p "${ERR_DIR}"
   export STEP="${PFAM_STEP}";
   export MATCH_EXP="${PFAM_MATCH_EXP}"
   export NEXT_DIR_NAME="${MSA_DIR_NAME}"
-  find "${OUT_DIR}"/*/"${PFAM_DIR_NAME}"/*.fasta | xargs -d "\n" -P "${OMP_NUM_THREADS}" -n 1 ./check_standard
+  find "${OUT_DIR}"/*/"${PFAM_DIR_NAME}"/*.fasta 2>/dev/null | xargs -d "\n" -P "${OMP_NUM_THREADS}" -n 1 ./check_standard
 
   export STEP="${MSA_STEP}"
-  find "${OUT_DIR}"/*/"${MSA_DIR_NAME}"/*.fasta | xargs -d "\n" -P "${OMP_NUM_THREADS}" -n 1 ./check_MSA
+  find "${OUT_DIR}"/*/"${MSA_DIR_NAME}"/*.fasta 2>/dev/null | xargs -d "\n" -P "${OMP_NUM_THREADS}" -n 1 ./check_MSA
 )
 
 showtime "Checking time"
@@ -431,7 +457,7 @@ if [[ ${BATCH,,} != *"test"* ]]; then
   #  - problematic_sequences_A.out with sequences that failed to be checked
   #  - problematic_sequences_B.out with sequences that failed when being checked
   # 2) Create archives for the rest of sequences and move them to result directory
-  #    along with Rosetta .a3m files
+  #    along with .a3m files from Rosetta and not-ripe directories
   # 3) Update *db.index file(s)
   # 4) Update *submited_sequences.out file(s)
   (
@@ -452,8 +478,6 @@ if [[ ${BATCH,,} != *"test"* ]]; then
     printf "%s %s. %s\n" "Cannot remove" "${OUT_DIR}" "Folder not empty!"
   fi
 
-  # Save SLURM_JOB_ID
-  echo "${BATCH} # ${SLURM_JOB_ID} # $(date +%Y-%m-%d_%H:%M:%S)" >> "${RES_DIR}/job_mapping.out"
   showtime "Organizing output time"
 fi
 
