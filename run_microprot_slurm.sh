@@ -5,10 +5,10 @@
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=24
 #SBATCH --mem=120GB
-#SBATCH --time=00:30:00
-#SBATCH -A tomaszlabmcb1
-#SBATCH -p plgrid-testing
-#SBATCH -C localfsg
+#SBATCH --time=72:00:00
+#SBATCH -A plgtomaszlabmcb3
+#SBATCH -p plgrid
+#SBATCH -C localfs
 
 #=============================================
 #       UTILITY FUNCTIONS & VARIABLES
@@ -160,7 +160,7 @@ module load plgrid/tools/hh-suite/3.1.0
 # conda activation (choose prefered way)
 #source "${MAIN_DIR}/tools/miniconda3/etc/profile.d/conda.sh"
 #conda activate microprot_old # TODO
-export PATH="${MAIN_DIR}/tools/miniconda3/bin:$PATH"
+export PATH="${MAIN_DIR}/tools/miniconda3/bin:${PATH}"
 source activate microprot_old # TODO
 
 # 4) Parameters
@@ -175,8 +175,8 @@ showtime "Setup time"
 printf "\n%s\n" "Creating input files / output & log folders..."
 timestamp; start=$(date +%s.%N)
 
-rm -rf "${LOG_DIR}" "${INP_DIR}" "${OUT_DIR}"
-mkdir -p "${LOG_DIR}" "${INP_DIR}" "${OUT_DIR}"
+rm -rf "${LOG_DIR}" "${OUT_DIR}" "${INP_DIR}"
+mkdir -p "${LOG_DIR}" "${OUT_DIR}" "${INP_DIR}"
 
 # Create input files with fasta sequences
 python "${MICRO_DIR}"/scripts/parse_inputs.py -f \
@@ -351,16 +351,19 @@ if [ ${SEQS} -gt 0 ]; then
   header "HHblits..."
   #==================
   timestamp; start=$(date +%s.%N)
+  # consider only .fasta files that haven't been processed yet
+  # this is important if a job had been interrupted and resumed afterwards
+  readarray SEQS < <(comm -23 <(ls "${OUT_DIR}"/*/"${DIR_NAME}"/*fasta | sed s/fasta/a3m/ | sort) \
+  <(ls "${OUT_DIR}"/*/"${DIR_NAME}"/*a3m 2> /dev/null | sort) | sed s/a3m/fasta/)
 
-  SEQS=$(find "${OUT_DIR}"/*/"${DIR_NAME}"/*.fasta 2> /dev/null | wc -l)
-  P="${SEQS}"
+  P="${#SEQS[@]}"
   if [ ${P} -gt ${MAX_CORES_MSA} ]; then P=${MAX_CORES_MSA}; fi
   export CORES=$((${OMP_NUM_THREADS} / ${P}))
   # NOTE: HHblits parameters are imported as MSA_PARAMS (see config)
-  printparams "${SEQS}" "${P}" "${CORES}" "${OMP_NUM_THREADS}" "${MSA_PARAMS}"
+  printparams "${#SEQS[@]}" "${P}" "${CORES}" "${OMP_NUM_THREADS}" "${MSA_PARAMS}"
   (
     cd "${MICRO_DIR}"/slurm/
-    find "${OUT_DIR}"/*/"${DIR_NAME}"/*.fasta | xargs -d "\n" -P "${P}" -n 1 ./run_hhblits
+    printf "%s" "${SEQS[@]}" | xargs -d "\n" -P "${P}" -n 1 ./run_hhblits
   )
   showtime "Computation time"
 
