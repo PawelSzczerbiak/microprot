@@ -24,4 +24,4 @@ export MSA_MIN_NEFF=16
 export RES_SEPARATOR=10000
 
 # Name of the result folder (where all input, output and log files will be stored)
-export RES_NAME="microprot"
+export RES_NAME="microprot_long"
