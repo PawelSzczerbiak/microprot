@@ -1,4 +1,12 @@
 #!/bin/bash
+#=====================================
+# Master script for submitting SLURM jobs
+
+# The script contains only job-dependent arguments.
+# The rest (e.g. paths) is placed in config files and the job script
+# called run_microprot_slurm.sh.
+# TODO: some arguments (e.g. for hhsearch/hhblits) are hardcoded!
+#=====================================
 
 # Input DB names with sequences
 
@@ -19,22 +27,24 @@ MAX_MSA=8
 MAX_NEFF=24
 
 # Config file
-CONFIG_DEFAULT="config_default"
+CONFIG_DEFAULT="config_default_long"
 
 # Destination directory
-DEST_DIR="pszczerbiak@argon.mcb.uj.edu.pl:/klaster/work/pszczerbiak/microprot/"
+DEST_DIR="pszczerbiak@argon.mcb.uj.edu.pl:/klaster/work/pszczerbiak/microprot_long/"
 
-# Submit array job
-RANGE="1160-1219" # sequence range(s) in thousands e.g. 4-6 will produce: 4001-5000,5001-6000,6001-7000
-#SEQ_RANGE="1257,1293,1479,1520,1586" # explicit sequence range(s)
-NAME="micro_localfs" # batch name
-sbatch --array=1-60%20 -e "${NAME}_${RANGE}_%a.err" -o "${NAME}_${RANGE}_%a.out" run_microprot_slurm.sh \
- "${NAME}" "${RANGE}" "${SEQ_RANGE}" "${UHGP_VERSION}" "${UHGP_40_1000}" "${PDB}" "${PFAM}" "${UNICLUST}" \
- "${MAX_CM}" "${MAX_PFAM}" "${MAX_MSA}" "${MAX_NEFF}" "${CONFIG_DEFAULT}" "${DEST_DIR}"
+# Uncomment (and change appropriately) a section below
 
-# Submit normal job
+## Submit single job
 #NAME=micro_localfs
 #NAME_LOG=micro_localfs_800-899_2
 #sbatch --error="${NAME_LOG}.err_cont" --output="${NAME_LOG}.out_cont" run_microprot_slurm.sh \
 #"${NAME}" 801 801001-802000 "${UHGP_VERSION}" "${UHGP_40_1000}" "${PDB}" "${PFAM}" "${UNICLUST}" \
 #"${MAX_CM}" "${MAX_PFAM}" "${MAX_MSA}" "${MAX_NEFF}" "${CONFIG_DEFAULT}" "${DEST_DIR}"
+
+## Submit array job
+#RANGE="0-19" # sequence range(s) in thousands e.g. 4-6 will produce: 4001-5000,5001-6000,6001-7000
+##SEQ_RANGE="1257,1293,1479,1520,1586" # explicit sequence range(s)
+#NAME="micro_long_localfs" # batch name
+#sbatch --array=1-20%20 -e "${NAME}_${RANGE}_%a.err" -o "${NAME}_${RANGE}_%a.out" run_microprot_slurm.sh \
+# "${NAME}" "${RANGE}" "${SEQ_RANGE}" "${UHGP_VERSION}" "${UHGP_1001}" "${PDB}" "${PFAM}" "${UNICLUST}" \
+# "${MAX_CM}" "${MAX_PFAM}" "${MAX_MSA}" "${MAX_NEFF}" "${CONFIG_DEFAULT}" "${DEST_DIR}"
