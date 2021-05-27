@@ -120,6 +120,9 @@ fi
 printf "\n%s\n" "Setup environment..."
 timestamp; start=$(date +%s.%N)
 
+# import config variables
+source "${CONFIG}"
+
 # 2) Directories
 
 # main directories
@@ -128,12 +131,12 @@ WORK_DIR="${SCRATCH}/plggtomlab/"
 # microprot directory
 export MICRO_DIR="${MAIN_DIR}/tools/microprot/microprot"
 # input directory (where the input data will be stored)
-INP_DIR="${MAIN_DIR}/microprot/input/${BATCH}"
-# Result directory for files staged for sending to DEST_DIR
-export RES_DIR="${MAIN_DIR}/microprot"
+INP_DIR="${MAIN_DIR}/${RES_NAME}/input/${BATCH}"
 # main working & log directories
-export OUT_DIR="${WORK_DIR}/microprot/output/${BATCH}"
-export LOG_DIR="${MAIN_DIR}/microprot/log/${BATCH}"
+export OUT_DIR="${WORK_DIR}/${RES_NAME}/output/${BATCH}"
+export LOG_DIR="${MAIN_DIR}/${RES_NAME}/log/${BATCH}"
+# Result directory for files staged for sending to DEST_DIR, input, log etc.
+export RES_DIR="${MAIN_DIR}/${RES_NAME}"
 # folder names for the subsequent microprot steps
 export CM_DIR_NAME="01-CM"
 export PFAM_DIR_NAME="02-Pfam"
@@ -153,8 +156,6 @@ UNIDB_DIR="${MAIN_DIR}/dbs/uniclust/${UNICLUST_NAME}"
 
 # 3) Modules
 
-# import config variables
-source "${CONFIG}"
 # hh-suite module import
 module load plgrid/tools/hh-suite/3.1.0
 # conda activation (choose prefered way)
